@@ -1,0 +1,48 @@
+# .github/workflows/deploy-frontend.yml
+name: "Deploy Frontend to S3/CloudFront"
+
+on:
+  push:
+    branches:
+      - feat # 보통은 main branch이지만 우리는 'feat' branch로 설정할게요!
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v3
+
+      - name: Node.js 설정
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: 의존성 설치 (Frontend)
+        working-directory: ./
+        run: |
+          npm ci
+
+      - name: 빌드 수행 (React 예시)
+        working-directory: ./
+        run: npm run build
+
+      - name: AWS 자격증명 설정
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: S3에 빌드 산출물 업로드
+        run: |
+          aws s3 sync ./build s3://${{ secrets.S3_BUCKET_NAME }} \
+            --delete \
+
+      - name: CloudFront 캐시 무효화 (Invalidation)
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
